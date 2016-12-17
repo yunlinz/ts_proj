@@ -16,15 +16,15 @@ class Security(object):
 
 
 class Position(object):
-    def __init__(self, security, amount, date_entered, short_interest):
+    def __init__(self, security, amount, date_entered, cost_to_borrow):
         self.security = security  # the security object
         self.amount = amount
         self.date_entered = date_entered
-        self.short_interest = short_interest # annualized short interest
+        self.cost_to_borrow = cost_to_borrow # annualized short interest
 
     def exit_position(self, date_exit):
         period_returns, bdays = self.security.get_return(self.date_entered, date_exit)
-        return period_returns - 0.0015 - (self.short_interest ** (bdays / 252) if self.amount < 0 else 0)
+        return period_returns - 0.0015 - (self.cost_to_borrow ** (bdays / 252) if self.amount < 0 else 0)
 
 
 class PositionCache(object):
