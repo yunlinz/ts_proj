@@ -3,10 +3,12 @@ import copy
 import pandas as pd
 import datetime
 
+
 class BackTester(object):
     def __init__(self):
         self.portfolio = Portfolio()
         self.universe = Universe()
+        self.fundamentals = None
         self.cur_date = None
         self.start_date = None
         self.end_date = None
@@ -18,7 +20,8 @@ class BackTester(object):
         if self.universe.price_db is not None:
             self.universe.price_db.close()
 
-    def set_universe(self, current_spx=None, events=None, quotes=None):
+    def set_universe(self, current_spx=None, events=None, quotes=None, fundamentals=None):
+        self.fundamentals = pd.read_csv(fundamentals, parse_dates=[1])
         self.start_date, self.end_date = \
             self.universe.initialize_from_files(current_spx=current_spx
                                                  , events=events
@@ -29,9 +32,9 @@ class BackTester(object):
         self.cur_date += datetime.timedelta(days=1)
         if self.cur_date in self.universe.events:
             for event in self.universe.events[self.cur_date]:
-                ticker, type = event.ticker, event.type
-                self.universe.update_eligibility(ticker, type)
-                print('Event {}:{} processed'.format(ticker, 'ADD' if type == 0 else 'REMOVE'))
+                ticker, kind = event.ticker, event.type
+                self.universe.update_eligibility(ticker, kind)
+                print('Event {}:{} processed'.format(ticker, 'ADD' if kind == 0 else 'REMOVE'))
 
     def step_day(self):
         if self.cur_date > self.end_date:
@@ -60,7 +63,6 @@ class BackTester(object):
         print('Security {} added successfully!'.format(ticker))
         return True
 
-
     def exit_position(self, ticker, price):
         pct_ret, amt_ret = None, None
         if self.portfolio.in_longs(ticker):
@@ -70,3 +72,13 @@ class BackTester(object):
             pct_ret, amt_ret = \
                 self.portfolio.shorts.close_position(ticker, self.cur_date, price)
         return pct_ret, amt_ret
+
+    def get_eligible_list(self):
+        return self.universe.eligible_secs
+
+    def get_current_fundamentals(self, ticker, delay=0):
+        df = self.fundamentals[(self.fundamentals['tic'] == ticker)
+                               & (self.fundamentals['datadate'] <= self.cur_date - datetime.timedelta(days=delay))]
+        most_recent = df['datadate'].max()
+        return(df[df['datadate'] == most_recent])
+

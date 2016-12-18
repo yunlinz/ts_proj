@@ -3,7 +3,8 @@ from src.BackTester import *
 if __name__ == '__main__':
     with BackTester() as bt:
         bt.set_universe(current_spx='../data/spx_constituents_20161216.csv'
-                        , events='../data/spx_events.csv', quotes='../data/')
+                        , events='../data/spx_events.csv', quotes='../data/'
+                        , fundamentals='../data/fundamentals.csv')
         print(bt.start_date)
         print(bt.end_date)
 
@@ -20,5 +21,8 @@ if __name__ == '__main__':
         print(bt.exit_position('AAPL', 101))
         print(bt.exit_position('A', 11))
 
-        while bt.cur_date <= bt.end_date:
+        for _ in range(1000):
             bt._increment_date()
+        print(bt.cur_date)
+        print(bt.get_current_fundamentals('AAPL'))
+        print(bt.get_current_fundamentals('AAPL', 365))
