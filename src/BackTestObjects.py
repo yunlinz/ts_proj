@@ -5,31 +5,23 @@ import csv
 import xlrd
 import sqlite3
 
-
-
-class Security(object):
-    def __init__(self):
-        self.price_series = None  # Pandas data series of returns
-        self.pe_ratio_series = None  # Pandas data series of P/E ratio
-        self.mcap_series = None  # Pandas data series market cap
-        self.sector = None  # string describing the sector
-        self.ticker = None
-
-    def get_return(self, enter_date, exit_date):
-        price_series = self.price_series[enter_date:exit_date]
-        return (price_series[-1] - price_series[0])/price_series[0], len(price_series)
+TRANSACTION_COST = 0.0015
 
 
 class Position(object):
-    def __init__(self, security, amount, date_entered, cost_to_borrow):
-        self.security = security  # the security object
+    def __init__(self, security, amount, date_entered, enter_price, cost_to_borrow=0):
+        self.security = security  # the security ticker
         self.amount = amount
+        self.enter_price = enter_price
         self.date_entered = date_entered
-        self.cost_to_borrow = cost_to_borrow # annualized short interest
+        self.cost_to_borrow = cost_to_borrow  # annualized borrowing cost
 
-    def exit_position(self, date_exit):
-        period_returns, bdays = self.security.get_return(self.date_entered, date_exit)
-        return period_returns - 0.0015 - (self.cost_to_borrow ** (bdays / 252) if self.amount < 0 else 0)
+    def exit_position(self, date_exit, exit_price):
+        bdays = 5.0 / 7.0 * (date_exit - self.date_entered).days
+        pct_return = (exit_price - self.enter_price) / self.enter_price - \
+                     TRANSACTION_COST - (self.cost_to_borrow ** (bdays / 252)
+                                         if self.amount < 0 else 0)
+        return pct_return, self.amount * self.enter_price * pct_return
 
 
 class PositionCache(object):
@@ -41,14 +33,19 @@ class PositionCache(object):
         self.position_list.append(pos)
         self.position_dict[pos.security.ticker] = self.position_list[-1]
 
-    def close_position(self, security, date):
-        pos = self.position_dict[security.ticker]
-        period_returns = pos.exit_position(date)
-        del self.position_dict[security.ticker]
-        return period_returns
+    def enter_position(self, security, amount, date, price, cost_to_borrow=0):
+        pos = Position(security, amount, date, price, cost_to_borrow)
+        self.position_list.append(pos)
+        self.position_dict[security] = self.position_list[-1]
 
-    def has_position(self, security):
-        return security in self.position_dict
+    def close_position(self, security, date, price):
+        pos = self.position_dict[security]
+        pct_ret, amt_ret = pos.exit_position(date, price)
+        del self.position_dict[security]
+        return pct_ret, amt_ret
+
+    def has_position(self, ticker):
+        return ticker in self.position_dict
 
 
 class Portfolio(object):
@@ -56,11 +53,11 @@ class Portfolio(object):
         self.longs = PositionCache()
         self.shorts = PositionCache()
 
-    def in_longs(self, security):
-        return self.longs.has_position(security)
+    def in_longs(self, ticker):
+        return self.longs.has_position(ticker)
 
-    def in_shorts(self, security):
-        return self.shorts.has_position(security)
+    def in_shorts(self, ticker):
+        return self.shorts.has_position(ticker)
 
 
 class Universe(object):
@@ -93,11 +90,10 @@ class Universe(object):
 
         return parse(first), parse(last)
 
-
     def _initialize_events(self, file=None):
         if file is None:
             pass
-        with open(file) as events: # assumes a 3 column csv with date,add,remove and date is in mm/dd/yyyy format
+        with open(file) as events:  # assumes a 3 column csv with date,add,remove and date is in mm/dd/yyyy format
             csvreader = csv.reader(events)
             for line in csvreader:
                 date, add, remove = line
@@ -134,12 +130,19 @@ class Universe(object):
                 else:
                     raise BrokenPipeError('Malformed event for {}'.format(event.ticker))
 
+    def is_eligible(self, ticker):
+        return ticker in self.eligible_secs
+
+    def update_eligibility(self, ticker, type):
+        if type == Event.ADD:
+            self.eligible_secs.add(ticker)
+        elif type == Event.REMOVE:
+            self.eligible_secs.remove(ticker)
 
 class Event(object):
     ADD = 0
     REMOVE = 1
-    MERGER = 2
+
     def __init__(self, ticker, type):
         self.ticker = ticker
         self.type = type
-

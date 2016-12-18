@@ -25,6 +25,14 @@ class BackTester(object):
                                                  , quotes_dir=quotes)
         self.cur_date = copy.deepcopy(self.start_date)
 
+    def _increment_date(self):
+        self.cur_date += datetime.timedelta(days=1)
+        if self.cur_date in self.universe.events:
+            for event in self.universe.events[self.cur_date]:
+                ticker, type = event.ticker, event.type
+                self.universe.update_eligibility(ticker, type)
+                print('Event {}:{} processed'.format(ticker, 'ADD' if type == 0 else 'REMOVE'))
+
     def step_day(self):
         if self.cur_date > self.end_date:
             return None
@@ -32,8 +40,33 @@ class BackTester(object):
             .format(self.cur_date.strftime('%Y-%m-%d'))
         df = pd.read_sql(query
                          , self.universe.price_db)
-        self.cur_date += datetime.timedelta(days=1)
+        self._increment_date()
         while len(df) == 0:
             df = self.step_day()
         return df
 
+    def reset_portfolio(self):
+        self.portfolio = Portfolio()
+        self.cur_date = copy.deepcopy(self.start_date)
+
+    def enter_position(self, ticker, price, amount):
+        if not self.universe.is_eligible(ticker):
+            print('Security {} is not eligible to right now!'.format(ticker))
+            return False
+        if amount < 0:
+            self.portfolio.shorts.enter_position(ticker, amount, self.cur_date, price)
+        else:
+            self.portfolio.longs.enter_position(ticker, amount, self.cur_date, price)
+        print('Security {} added successfully!'.format(ticker))
+        return True
+
+
+    def exit_position(self, ticker, price):
+        pct_ret, amt_ret = None, None
+        if self.portfolio.in_longs(ticker):
+            pct_ret, amt_ret = \
+                self.portfolio.longs.close_position(ticker, self.cur_date, price)
+        if self.portfolio.in_shorts(ticker):
+            pct_ret, amt_ret = \
+                self.portfolio.shorts.close_position(ticker, self.cur_date, price)
+        return pct_ret, amt_ret
