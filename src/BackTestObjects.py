@@ -3,6 +3,7 @@ import numpy as np
 from dateutil.parser import parse
 import csv
 import xlrd
+import sqlite3
 
 
 
@@ -68,14 +69,30 @@ class Universe(object):
         self.sec_list = []
         self.eligible_secs = set()
         self.events = {}
+        self.price_db = None
         self.last_sync_date = None
 
-    def initialize_from_files(self, current_spx=None, events=None):
+    def __enter__(self):
+        return Universe.__init__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.price_db is not None:
+            self.price_db.close()
+
+    def initialize_from_files(self, current_spx=None, events=None, quotes_dir='../data/'):
         self._initialize_events(events)
         self._create_initial_eligible_list(current_spx)
         self._rollback_events()
-        raise NotImplementedError
-        return 1,2
+
+        db = sqlite3.connect(quotes_dir + 'quotes_db.db'
+                             , detect_types=sqlite3.PARSE_DECLTYPES)
+        c = db.cursor()
+        c.execute('SELECT MIN(Date), MAX(Date) FROM QUOTES')
+        first, last = c.fetchone()
+        self.price_db = db
+
+        return parse(first), parse(last)
+
 
     def _initialize_events(self, file=None):
         if file is None:
