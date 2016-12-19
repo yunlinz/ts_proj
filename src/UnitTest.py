@@ -1,19 +1,21 @@
 from src.BackTester import *
+import datetime
 
 if __name__ == '__main__':
     with BackTester() as bt:
         bt.set_universe(current_spx='../data/spx_constituents_20161216.csv'
                         , events='../data/spx_events.csv', quotes='../data/'
-                        , fundamentals='../data/fundamentals.csv')
+                        , fundamentals='../data/fundamentals.csv'
+                        , signals_file='../data/sp500_sectors.csv')
         print(bt.start_date)
         print(bt.end_date)
 
-        assert (len(bt.step_day()) == 618)
-        assert (len(bt.step_day()) == 618)
-        assert (len(bt.step_day()) == 617)
-        assert (len(bt.step_day()) == 617)
-        assert (len(bt.step_day()) == 617)
-        assert (len(bt.step_day()) == 616)
+        print(bt.step_day())
+
+        bt.set_cur_date(datetime.datetime(2015,12,30))
+        print(bt.step_day())
+
+        bt.reset_portfolio()
 
         bt.step_day()
         bt.enter_position('AAPL', 100, 1000000)

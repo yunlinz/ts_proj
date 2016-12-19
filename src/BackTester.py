@@ -8,6 +8,7 @@ class BackTester(object):
     def __init__(self):
         self.portfolio = Portfolio()
         self.universe = Universe()
+        self.signal_set = None
         self.fundamentals = None
         self.cur_date = None
         self.start_date = None
@@ -20,8 +21,12 @@ class BackTester(object):
         if self.universe.price_db is not None:
             self.universe.price_db.close()
 
-    def set_universe(self, current_spx=None, events=None, quotes=None, fundamentals=None):
-        self.fundamentals = pd.read_csv(fundamentals, parse_dates=[1])
+    def set_universe(self, current_spx, events, quotes
+                     , fundamentals=None, signals_file=None):
+        if signals_file is not None:
+            self.signal_set = pd.read_csv(signals_file, parse_dates=[0])
+        if fundamentals is not None:
+            self.fundamentals = pd.read_csv(fundamentals, parse_dates=[1])
         self.start_date, self.end_date = \
             self.universe.initialize_from_files(current_spx=current_spx
                                                  , events=events
@@ -41,12 +46,14 @@ class BackTester(object):
             return None
         query = 'SELECT * FROM QUOTES WHERE DATE = DATETIME(\'{}\')'\
             .format(self.cur_date.strftime('%Y-%m-%d'))
-        df = pd.read_sql(query
+        quote_df = pd.read_sql(query
                          , self.universe.price_db)
         self._increment_date()
-        while len(df) == 0:
-            df = self.step_day()
-        return df
+        while len(quote_df) == 0:
+            quote_df = self.step_day()
+        print(self.cur_date)
+        signal_df = self.signal_set[self.signal_set['Date'] == self.cur_date]
+        return quote_df, signal_df
 
     def reset_portfolio(self):
         self.portfolio = Portfolio()
@@ -82,3 +89,5 @@ class BackTester(object):
         most_recent = df['datadate'].max()
         return(df[df['datadate'] == most_recent])
 
+    def set_cur_date(self, date):
+        self.cur_date = date
