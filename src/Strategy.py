@@ -48,10 +48,13 @@ class Strategy(object):
                         self.returns[-1] += pct_ret * proportion
                     orders = self.calculate_positions(quotes, signals)
                     for order in orders:
-                        ticker, _ = order
+                        ticker, proportion = order
                         df_temp = quotes[quotes['Ticker'] == ticker]
                         px_last = df_temp[df_temp['Date'] == df_temp['Date'].max()]['Price'].iloc[0]
-                        bt.enter_position(ticker, px_last, 1)
+                        if proportion > 0:
+                            bt.enter_position(ticker, px_last, 1)
+                        else:
+                            bt.enter_position(ticker, px_last, -1)
             self.returns.append(0)
             for order in orders:  #get the final returns
                 ticker, proportion = order
