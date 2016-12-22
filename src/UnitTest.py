@@ -7,6 +7,10 @@ if __name__ == '__main__':
                         , events='../data/spx_events.csv', quotes='../data/'
                         , fundamentals='../data/fundamentals.csv'
                         , signals_file='../data/sp500_sectors.csv')
+
+        print(bt.universe.eligible_secs)
+        exit()
+
         print(bt.start_date)
         print(bt.end_date)
 
@@ -28,3 +32,5 @@ if __name__ == '__main__':
         print(bt.cur_date)
         print(bt.get_current_fundamentals('AAPL'))
         print(bt.get_current_fundamentals('AAPL', 365))
+
+        print(bt.step_week())

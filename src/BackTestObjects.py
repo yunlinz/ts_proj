@@ -77,14 +77,18 @@ class Universe(object):
             self.price_db.close()
 
     def initialize_from_files(self, current_spx=None, events=None, quotes_dir='../data/'):
+        print('Reading files')
         self._initialize_events(events)
         self._create_initial_eligible_list(current_spx)
         self._rollback_events()
 
+        print('Opening DB connection')
         db = sqlite3.connect(quotes_dir + 'quotes_db.db'
                              , detect_types=sqlite3.PARSE_DECLTYPES)
         c = db.cursor()
+        print('Querying DB')
         c.execute('SELECT MIN(Date), MAX(Date) FROM QUOTES')
+        print('Done')
         first, last = c.fetchone()
         self.price_db = db
 

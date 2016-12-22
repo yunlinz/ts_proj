@@ -14,8 +14,6 @@ Methods:
 
 2. bt.step_day(): returns a Pandas dataframe with the next business day's data, and will automatically process any new events
 
-3. bt.enter_position(ticker, price, amount): enter in a position on the current date--will return True if position is entered into correctly
-
-4. bt.exit_position(ticker, price): exits the position and returns (percent return, dollar return)
+3. bt.enter_position(ticker, price, amount): enter in a position on the current date--will return True if position is entered into correctly4. bt.exit_position(ticker, price): exits the position and returns (percent return, dollar return)
 
 5. bt.get_current_fundamentals(ticker, delay): returns the most recent set of fundamentals for the ticker, with a delay measured in days

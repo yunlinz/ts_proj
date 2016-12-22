@@ -23,10 +23,13 @@ class BackTester(object):
 
     def set_universe(self, current_spx, events, quotes
                      , fundamentals=None, signals_file=None):
+        print('Caching signals file')
         if signals_file is not None:
             self.signal_set = pd.read_csv(signals_file, parse_dates=[0])
+        print('Caching fundamentals file')
         if fundamentals is not None:
             self.fundamentals = pd.read_csv(fundamentals, parse_dates=[1])
+        print('Initialize SPX membership')
         self.start_date, self.end_date = \
             self.universe.initialize_from_files(current_spx=current_spx
                                                  , events=events
@@ -50,10 +53,34 @@ class BackTester(object):
                          , self.universe.price_db)
         self._increment_date()
         while len(quote_df) == 0:
-            quote_df = self.step_day()
+            quote_df, signal_df = self.step_day()
         print(self.cur_date)
+        quote_df['Eligible'] = quote_df['Ticker'].apply(lambda x: x in self.universe.eligible_secs)
         signal_df = self.signal_set[self.signal_set['Date'] == self.cur_date]
         return quote_df, signal_df
+
+    def step_week(self):
+        if self.cur_date > self.end_date:
+            return None
+        query = 'SELECT * FROM QUOTES WHERE DATE = DATETIME(\'{}\')' \
+            .format(self.cur_date.strftime('%Y-%m-%d'))
+
+        quote_res = None
+        signal_res = None
+        self._increment_date()
+        while self.cur_date.isocalendar()[2] != 6:
+            if quote_res is None:
+                quote_res = pd.read_sql(query, self.universe.price_db)
+                signal_res = self.signal_set[self.signal_set['Date'] == self.cur_date]
+            else:
+                quote_res = quote_res.append(pd.read_sql(query, self.universe.price_db), ignore_index=True)
+                signal_res = signal_res.append(self.signal_set[self.signal_set['Date'] == self.cur_date]
+                                               , ignore_index=True)
+            query = 'SELECT * FROM QUOTES WHERE DATE = DATETIME(\'{}\')' \
+                .format(self.cur_date.strftime('%Y-%m-%d'))
+            self._increment_date()
+        quote_res['Eligible'] = quote_res['Ticker'].apply(lambda x: x in self.universe.eligible_secs)
+        return quote_res, signal_res
 
     def reset_portfolio(self):
         self.portfolio = Portfolio()
@@ -91,3 +118,13 @@ class BackTester(object):
 
     def set_cur_date(self, date):
         self.cur_date = date
+
+    def more_days(self):
+        return self.cur_date <= self.end_date
+
+    def get_final_price(self, ticker):
+        query = 'SELECT Date, Price FROM QUOTES WHERE TICKER = \'{}\' ORDER BY Date DESC LIMIT 1'.format(ticker)
+        df = pd.read_sql(self.universe.price_db, query, parse_dates=[0])
+        date = df['Date'].iloc[0]
+        px = df['Price'].iloc[0]
+        return px
