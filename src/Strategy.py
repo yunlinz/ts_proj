@@ -12,6 +12,23 @@ DAY = 0
 WEEK = 1
 FIRST_DAY = datetime(2001, 10, 9)
 
+# GICS sector codes are in 'gsector' file in the 
+gics_map_code_to_header = {
+    10 : 'energy',
+    15 : 'materials',
+    20 : 'industrial',
+    25 : 'cons_discretionary',
+    30 : 'cons_staple',
+    35 : 'healthcare',
+    40 : 'financials',
+    45 : 'it',
+    50 : 'telecom',
+    55 : 'utilities',
+    60 : 'real_estate'
+}
+
+gics_map_header_to_code = {v:k for k, v in gics_map_code_to_header.items()}
+
 class Strategy(object):
     def __init__(self):
         self.trades = []
