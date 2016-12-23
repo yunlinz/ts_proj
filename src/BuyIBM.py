@@ -11,7 +11,7 @@ class BuyIbm(Strategy):
         self.hist_quotes = None
         self.hist_signals = None
 
-    def calculate_positions(self, quote, signals):
+    def calculate_positions(self, quote, signals, bt):
         # persist the data frames
         if self.hist_quotes is None:
             self.hist_quotes = quote
@@ -29,7 +29,7 @@ class BuyIbm(Strategy):
         # the analysis just plots all the returns
         import matplotlib.pyplot as plt
         fig = plt.figure()
-        fig.plot(self.returns)
+        plt.plot(self.returns)
         self.figures.append(fig)
 
 if __name__ == '__main__':
