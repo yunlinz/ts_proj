@@ -6,3 +6,5 @@ class VolRegimeStrategy(Strategy):
         self.hist_quotes = []
         self.hist_signals = []
         self.dtw_matrix = []
+        self.state = []
+

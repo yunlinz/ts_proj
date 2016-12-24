@@ -25,12 +25,7 @@ class BuyIbm(Strategy):
         # don't do any actual processing and just return a single order in IBM
         return [('IBM', 1)]
 
-    def analyze_trades_and_returns(self):
-        # the analysis just plots all the returns
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        plt.plot(self.returns)
-        self.figures.append(fig)
+
 
 if __name__ == '__main__':
     # instantiate BuyIbm class

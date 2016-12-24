@@ -65,7 +65,7 @@ class LS_PE_VolRegime(Strategy):
         with BackTester() as bt:
             bt.set_universe(current_spx='../data/spx_constituents_20161216.csv'
                             , events='../data/spx_events.csv', quotes='../data/'
-                            , fundamentals='../data/fundamentals.csv'
+                            , fundamentals='../data/fundamentals_quarterly.csv'
                             , signals_file='../data/sp500_sectors.csv')
             self.fundamentals = bt.fundamentals
             res = None
@@ -90,10 +90,10 @@ class LS_PE_VolRegime(Strategy):
                         continue  # do nothing in burn-in days
 
                     for order in orders: # close out all open positions
-                        print order
+                        print(order)
                         ticker, proportion = order
-                        if ticker is 'DVN': # debugging
-                            print 'DVN'
+                        if ticker == 'DVN': # debugging
+                            print('DVN')
                         df_temp = quotes[quotes['Ticker'] == ticker]
                         px_last = df_temp[df_temp['Date'] == df_temp['Date'].max()]['Price'].iloc[0]
                         pct_ret, _ = bt.exit_position(ticker, px_last)
@@ -101,8 +101,8 @@ class LS_PE_VolRegime(Strategy):
                     orders = self.calculate_positions(self.hist_quotes, self.hist_signals, bt)
                     for order in orders:
                         ticker, proportion = order
-                        if ticker is 'DVN': # debugging
-                            print 'DVN'
+                        if ticker == 'DVN': # debugging
+                            print('DVN')
                         df_temp = quotes[quotes['Ticker'] == ticker]
                         if df_temp.empty:
                             orders.remove(order) # if stock doesn't exist in quotes file, then remove from orders list
@@ -240,13 +240,6 @@ class LS_PE_VolRegime(Strategy):
         ax2.plot(pred_states, 'r--', linewidth=0.25)
         plt.title(industry_name.upper())
         plt.savefig(industry_name+'.png')
-
-    def analyze_trades_and_returns(self):
-        # the analysis just plots all the returns
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        fig.plot(self.returns)
-        self.figures.append(fig)
 
 if __name__ == '__main__':
     # instantiate BuyIbm class

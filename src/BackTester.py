@@ -29,6 +29,9 @@ class BackTester(object):
         print('Caching fundamentals file')
         if fundamentals is not None:
             self.fundamentals = pd.read_csv(fundamentals, parse_dates=[1])
+            if 'quarterly' in fundamentals:
+                self.fundamentals['sppe'] = \
+                    self.fundamentals['prccq'] * self.fundamentals['cshoq'] / self.fundamentals['niq']
         print('Initialize SPX membership')
         self.start_date, self.end_date = \
             self.universe.initialize_from_files(current_spx=current_spx
@@ -89,7 +92,7 @@ class BackTester(object):
     def enter_position(self, ticker, price, amount):
         if not self.universe.is_eligible(ticker):
             print('Security {} is not eligible to right now!'.format(ticker))
-            return False
+            # return False
         if amount < 0:
             self.portfolio.shorts.enter_position(ticker, amount, self.cur_date, price)
         else:
@@ -98,13 +101,15 @@ class BackTester(object):
         return True
 
     def exit_position(self, ticker, price):
-        pct_ret, amt_ret = None, None
+        pct_ret, amt_ret = 0, 0
         if self.portfolio.in_longs(ticker):
             pct_ret, amt_ret = \
                 self.portfolio.longs.close_position(ticker, self.cur_date, price)
-        if self.portfolio.in_shorts(ticker):
+        elif self.portfolio.in_shorts(ticker):
             pct_ret, amt_ret = \
                 self.portfolio.shorts.close_position(ticker, self.cur_date, price)
+        else:
+            print('{} not in positions'.format(ticker))
         return pct_ret, amt_ret
 
     def get_eligible_list(self):

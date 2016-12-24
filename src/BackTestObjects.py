@@ -41,7 +41,7 @@ class PositionCache(object):
     def close_position(self, security, date, price):
         pos = self.position_dict[security]
         pct_ret, amt_ret = pos.exit_position(date, price)
-        del self.position_dict[security]
+        # del self.position_dict[security]
         return pct_ret, amt_ret
 
     def has_position(self, ticker):
