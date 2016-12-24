@@ -92,17 +92,16 @@ class LS_PE_VolRegime(Strategy):
                     for order in orders: # close out all open positions
                         print order
                         ticker, proportion = order
-                        if ticker is 'DVN': # debugging
-                            print 'DVN'
                         df_temp = quotes[quotes['Ticker'] == ticker]
+                        if df_temp.empty:
+                            continue
                         px_last = df_temp[df_temp['Date'] == df_temp['Date'].max()]['Price'].iloc[0]
                         pct_ret, _ = bt.exit_position(ticker, px_last)
                         self.returns[-1] += pct_ret * proportion
                     orders = self.calculate_positions(self.hist_quotes, self.hist_signals, bt)
-                    for order in orders:
+                    orders = self.validate_order_list(orders, quotes) # if tickers are not avail. in quotes, then drop order
+                    for order in list(orders):
                         ticker, proportion = order
-                        if ticker is 'DVN': # debugging
-                            print 'DVN'
                         df_temp = quotes[quotes['Ticker'] == ticker]
                         if df_temp.empty:
                             orders.remove(order) # if stock doesn't exist in quotes file, then remove from orders list
@@ -116,6 +115,10 @@ class LS_PE_VolRegime(Strategy):
         self.analyze_trades_and_returns()
         self.save_all_data()
         print('Strategy backtest done!')
+
+    def validate_order_list(self, orders, quotes):
+        #check if quotes file contains all order tickers, if not, remove from order list
+        return [order for order in orders if order[0] in quotes['Ticker']]
 
     def calculate_positions(self, quote, signals, bt):
         df_returns = self.calculate_returns(signals)
