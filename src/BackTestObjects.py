@@ -5,7 +5,7 @@ import csv
 import xlrd
 import sqlite3
 
-TRANSACTION_COST = 0.0015
+TRANSACTION_COST = 0.0005
 
 
 class Position(object):

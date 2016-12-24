@@ -85,7 +85,6 @@ class Strategy(object):
         raise NotImplementedError
 
     def analyze_trades_and_returns(self):
-        raise NotImplementedError
         import pandas as pd
         import numpy as np
         from datetime import timedelta
@@ -95,9 +94,9 @@ class Strategy(object):
             'Date': self.dates,
             'Returns': self.returns
         })
-        return_df['Date'] = return_df['Date'].apply(lambda x: x + timedelta(days=1))
+        return_df['Date'] = return_df['Date'].apply(lambda x: x + timedelta(days=-1))
         return_df['DlrGrowth'] = 1 + return_df['Returns']
-        return_df.set_index('Date').sort_index()
+        return_df = return_df.set_index('Date').sort_index()
         return_df['CumuGrowth'] = return_df['DlrGrowth'].cumprod()
         sp500 = pd.read_csv('../data/spx.csv', parse_dates=[0]).set_index('Date').sort_index()[['Close']]
         sp500['returns'] = sp500['Close'].apply(np.log).diff().apply(np.exp) - 1
@@ -107,6 +106,7 @@ class Strategy(object):
         sp500 = sp500.join(tbill, how='inner', lsuffix='sp500', rsuffix='tbill')
 
         strat = return_df.join(sp500, how='inner', lsuffix='strat', rsuffix='')
+        strat['CumuGrowth'] = strat['CumuGrowth'] / strat['CumuGrowth'].iloc[0]
 
         strat_annual_return = strat['CumuGrowth'].iloc[-1] ** (len(strat) * 7 / 365.25) - 1
         strat_annual_vol = strat['Returns'].std() * np.sqrt(365.25 / 7)
@@ -127,7 +127,8 @@ class Strategy(object):
         self.text_data['SP500 Sharpe'] = sp500_sharpe
 
         fig = plt.figure()
-        plt.plot(strat.index, strat['CumuGrowth'], strat['CumuGrowthSP'])
+        plt.plot(strat.index, strat['CumuGrowth'])
+        plt.plot(strat.index, strat['CumuGrowthSP'])
         plt.xlabel('Time')
         plt.ylabel('Value')
         plt.title('Growth of $1')
