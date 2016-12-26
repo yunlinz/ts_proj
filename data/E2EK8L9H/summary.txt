@@ -1,0 +1,6 @@
+Strategy Annualized Return:-1.0
+Strategy Annualized Vol:3.04717947932
+SP500 Sharpe:-0.840397335803
+SP500 Annualized Return:1.17841024679
+SP500 Annualized Vol:0.145480020277
+Strategy Sharpe:-5.30406205743
