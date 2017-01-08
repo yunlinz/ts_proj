@@ -5,7 +5,7 @@ import csv
 import xlrd
 import sqlite3
 
-TRANSACTION_COST = 0.0005
+TRANSACTION_COST = 0.0
 
 
 class Position(object):
@@ -17,6 +17,8 @@ class Position(object):
         self.cost_to_borrow = cost_to_borrow  # annualized borrowing cost
 
     def exit_position(self, date_exit, exit_price):
+        if exit_price == '' or self.enter_price == '':
+            return 0, 0
         bdays = 5.0 / 7.0 * (date_exit - self.date_entered).days
         pct_return = (exit_price - self.enter_price) / self.enter_price - \
                      TRANSACTION_COST - (self.cost_to_borrow ** (bdays / 252)
@@ -41,7 +43,7 @@ class PositionCache(object):
     def close_position(self, security, date, price):
         pos = self.position_dict[security]
         pct_ret, amt_ret = pos.exit_position(date, price)
-        # del self.position_dict[security]
+        del self.position_dict[security]
         return pct_ret, amt_ret
 
     def has_position(self, ticker):
@@ -64,6 +66,7 @@ class Universe(object):
     def __init__(self):
         self.sec_dict = {}
         self.sec_list = []
+        self.spx_constituents = None
         self.eligible_secs = set()
         self.events = {}
         self.price_db = None
@@ -75,6 +78,29 @@ class Universe(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.price_db is not None:
             self.price_db.close()
+
+    def initialize_from_files2(self, spx_const=None, quotes_dir='../data/'):
+        self.spx_constituents = pd.read_csv(spx_const, parse_dates=[3, 4])
+        print('Opening DB connection')
+        db = sqlite3.connect(quotes_dir + 'quotes_db_full.sqlite'
+                             , detect_types=sqlite3.PARSE_DECLTYPES)
+        c = db.cursor()
+        print('Querying DB')
+        c.execute('SELECT MIN(Date), MAX(Date) FROM QUOTES')
+        print('Done')
+        first, last = c.fetchone()
+        self.price_db = db
+
+        start_date, end_date = parse(first), parse(last)
+        self.update_eligibles_set(start_date)
+
+        return start_date, end_date
+
+    def update_eligibles_set(self, date):
+        self.eligible_secs = set(self.spx_constituents[(self.spx_constituents['from'] <= date)
+                                                       & (self.spx_constituents['thru'] >= date)]['co_tic'])
+
+
 
     def initialize_from_files(self, current_spx=None, events=None, quotes_dir='../data/'):
         print('Reading files')

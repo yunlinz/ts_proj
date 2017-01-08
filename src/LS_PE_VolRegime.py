@@ -38,6 +38,15 @@ gics_map_code_to_header = {
 gics_map_header_to_code = {v:k for k, v in gics_map_code_to_header.items()}
 
 
+def state_predictor(states, threshold):
+    state1_pct = np.sum(states)/len(states)
+    if state1_pct > threshold:
+        return 1 # state predictor for given sector
+    else:
+        return 0 # state predictor for given sector
+    ## need to consider trend as well!!!
+
+
 class LS_PE_VolRegime(Strategy):
     def __init__(self):
         super(LS_PE_VolRegime, self).__init__()
@@ -60,7 +69,7 @@ class LS_PE_VolRegime(Strategy):
             #print self.hist_signals.count
         # don't do any actual processing and just return a single order in IBM
         # return [('IBM', 1)]
-
+    '''
     def run_strategy(self):
         with BackTester() as bt:
             bt.set_universe(current_spx='../data/spx_constituents_20161216.csv'
@@ -87,6 +96,7 @@ class LS_PE_VolRegime(Strategy):
                     self.calculate_hist_data(quotes, signals)
 
                     if len(self.dates) < BURN_IN_PERIOD:
+                        self.trades.append([])
                         continue  # do nothing in burn-in days
 
                     for order in orders: # close out all open positions
@@ -100,7 +110,7 @@ class LS_PE_VolRegime(Strategy):
                         self.returns[-1] += pct_ret * proportion
                     orders = self.calculate_positions(self.hist_quotes, self.hist_signals, bt)
                     orders = self.validate_order_list(orders, quotes) # if tickers are not avail. in quotes, then drop order
-                    for order in list(orders):
+                    for order in orders:
                         ticker, proportion = order
                         df_temp = quotes[quotes['Ticker'] == ticker]
                         if df_temp.empty:
@@ -115,10 +125,12 @@ class LS_PE_VolRegime(Strategy):
         self.analyze_trades_and_returns()
         self.save_all_data()
         print('Strategy backtest done!')
+    '''
 
     def validate_order_list(self, orders, quotes):
-        #check if quotes file contains all order tickers, if not, remove from order list
-        return [order for order in orders if order[0] in quotes['Ticker']]
+        # check if quotes file contains all order tickers, if not, remove from order list
+        return [order for order in orders if order[0] in quotes['TICKER']]
+        # return orders
 
     def calculate_positions(self, quote, signals, bt):
         df_returns = self.calculate_returns(signals)
@@ -126,9 +138,9 @@ class LS_PE_VolRegime(Strategy):
         #sns.heatmap(df_returns.corr(), annot=True)
         rolling_window = 12
         summary_df = self.hmm_df(df_returns.iloc[-rolling_window:, :])
-        return self.generate_trades(summary_df)
+        return self.generate_trades(summary_df, bt)
 
-    def generate_trades(self, df_hmm_decision):
+    def generate_trades(self, df_hmm_decision, bt):
         trades = []
         for industry_name in df_hmm_decision.index:
             pred_state = df_hmm_decision.loc[industry_name,'prediction'] ## states not uniform. why some states have neg mean???
@@ -140,14 +152,28 @@ class LS_PE_VolRegime(Strategy):
                 num_stock_select = (int) (len(df_stock_industry.index)*pct_stocks_to_trade)
                 short_tickers = df_stock_industry['tic'].values[:num_stock_select]
                 long_tickers = df_stock_industry['tic'].values[-num_stock_select:]
-
+            else:
+                pct_stocks_to_trade = 0.4  # trade 40% of sorted stocks, equally spreat between longs and shorts
+                num_stock_select = (int)(len(df_stock_industry.index) * pct_stocks_to_trade)
+                short_tickers = df_stock_industry['tic'].values[:num_stock_select:]
+                long_tickers = df_stock_industry['tic'].values[-num_stock_select:]
+            if (len(long_tickers) + len(short_tickers) == 0):
+                continue
             portion = 1.0/(len(long_tickers)+len(short_tickers)) # can also try hedge ratio or mean-var (based on forecasted return and correlation to vol regime)
 
             for ticker in long_tickers:
-                trades.append((ticker, portion))
+                if ticker in bt.universe.eligible_secs:
+                    trades.append((ticker, portion))
             for ticker in short_tickers:
-                trades.append((ticker,-portion))
+                if ticker in bt.universe.eligible_secs:
+                    trades.append((ticker,-portion))
 
+        orders = len(trades)
+        if orders == 0:
+            return []
+        longs = len(list(filter(lambda x: x[1] > 0, trades)))
+        shorts = orders - longs
+        trades = [(trade[0], np.sign(trade[1]) / orders * (1.7 if trade[1] > 0 else 0.7)) for trade in trades]
         return trades
 
     #def port_optimizer(self, stocks, ): # returns weights
@@ -166,7 +192,7 @@ class LS_PE_VolRegime(Strategy):
             df = fundamental_dropna[(fundamental_dropna['gsector'] == gics_code) & (fundamental_dropna['datadate'] <= cur_date - timedelta(days=delay))]
         else: df = self.fundamentals[(self.fundamentals['gsector'] == gics_code) & (self.fundamentals['datadate'] <= cur_date - timedelta(days=delay))]
         most_recent = df['datadate'].max()
-        return(df[df['datadate'] == most_recent])
+        return(df[(df['datadate'] == most_recent) & (df['tic'].isin(self.bt.universe.eligible_secs))])
 
 
     def get_current_fundamentals(self, ticker, gics_code, delay=0):
@@ -200,14 +226,16 @@ class LS_PE_VolRegime(Strategy):
             rolling_window=12 # 12 week rolling state median
             threshold=0.7 # percentage of state1 in window
             current_state.set_value(0,c,states[-1])
-            predictor=self.state_predictor(states, threshold)
+            predictor= state_predictor(states, threshold)
             #self.graph_hmm(series, states, c)
 
-            state1_mean = model.means_[0][0]
-            state2_mean = model.means_[1][0]
+            #state1_mean = model.means_[0][0]
+            #state2_mean = model.means_[1][0]
+            state2_mean = model.covars_[0][0][0]
+            state1_mean = model.covars_[1][0][0]
 
             # default state1 > state2, reverse if not the case
-            if state1_mean<state2_mean:
+            if state1_mean < state2_mean:
                 predictor = 1 - predictor
                 current_state[c]=1-current_state[c] # swich names
                 summary_df = summary_df.append(pd.DataFrame([[c,
@@ -228,13 +256,6 @@ class LS_PE_VolRegime(Strategy):
         self.states=self.states.append(current_state, ignore_index=True)
         summary_df=summary_df.set_index('sector')
         return(summary_df)
-
-
-    def state_predictor(self, states, threshold):
-        state1_pct = np.sum(states)/len(states)
-        if state1_pct>threshold: return 1 # state predictor for given sector
-        if 1-state1_pct>threshold: return 0 # state predictor for given sector
-        ## need to consider trend as well!!!
 
     def graph_hmm(self, time_series, pred_states, industry_name):
         fig, ax1 = plt.subplots()

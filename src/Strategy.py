@@ -5,6 +5,7 @@ that returns the weight of each position and the list of ticker positions to ent
 
 from src.BackTester import BackTester
 from datetime import datetime
+import numpy as np
 import random
 import matplotlib.pyplot as plt
 
@@ -38,9 +39,12 @@ class Strategy(object):
         self.serial = None
         self.frequency = WEEK
         self.text_data = {}
+        self.fundamentals = None
+        self.bt = None
 
     def run_strategy(self):
         with BackTester() as bt:
+            self.bt = bt
             bt.set_universe(current_spx='../data/spx_constituents_20161216.csv'
                             , events='../data/spx_events.csv', quotes='../data/'
                             , fundamentals='../data/fundamentals_quarterly.csv'
@@ -50,6 +54,7 @@ class Strategy(object):
             while bt.cur_date < FIRST_DAY:
                 res = bt.step_day()
             while bt.more_days():
+                self.fundamentals = bt.fundamentals
                 self.dates.append(bt.cur_date)
                 if self.frequency == WEEK:
                     res = bt.step_week()
@@ -62,20 +67,29 @@ class Strategy(object):
                     quotes, signals = res
                     self.returns.append(0.0)
                     for order in orders: # close out all open positions
-                        ticker, proportion = order
-                        df_temp = quotes[quotes['Ticker'] == ticker]
-                        px_last = df_temp[df_temp['Date'] == df_temp['Date'].max()]['Price'].iloc[0]
-                        pct_ret, _ = bt.exit_position(ticker, px_last)
-                        self.returns[-1] += pct_ret * proportion
+                        try:
+                            ticker, proportion = order
+                            df_temp = quotes[quotes['TICKER'] == ticker]
+                            px_last = df_temp[df_temp['Date'] == df_temp['Date'].max()]['Adj_Price'].iloc[0]
+                            pct_ret, _ = bt.exit_position(ticker, px_last)
+                            self.returns[-1] += pct_ret * proportion
+                        except:
+                            pass
                     orders = self.calculate_positions(quotes, signals, bt)
+                    if len(orders) == 0:
+                        self.trades.append([])
+                        continue
                     for order in orders:
-                        ticker, proportion = order
-                        df_temp = quotes[quotes['Ticker'] == ticker]
-                        px_last = df_temp[df_temp['Date'] == df_temp['Date'].max()]['Price'].iloc[0]
-                        if proportion > 0:
-                            bt.enter_position(ticker, px_last, 1)
-                        else:
-                            bt.enter_position(ticker, px_last, -1)
+                        try:
+                            ticker, proportion = order
+                            df_temp = quotes[quotes['TICKER'] == ticker]
+                            px_last = df_temp[df_temp['Date'] == df_temp['Date'].max()]['Adj_Price'].iloc[0]
+                            if proportion > 0:
+                                bt.enter_position(ticker, px_last, 1)
+                            else:
+                                bt.enter_position(ticker, px_last, -1)
+                        except:
+                            pass
                     self.trades.append(orders)
         self.analyze_trades_and_returns()
         self.save_all_data()
@@ -150,3 +164,6 @@ class Strategy(object):
         with open('../data/{}/summary.txt'.format(name), 'w') as outstream:
             for k, v in self.text_data.items():
                 outstream.write('{}:{}\n'.format(k, v))
+        with open('../data/{}/trades.txt'.format(name), 'w') as outstream:
+            for k, v in zip(self.dates, self.trades):
+                outstream.write('{}|{}\n'.format(k, v))

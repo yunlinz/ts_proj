@@ -34,23 +34,25 @@ class BackTester(object):
                     self.fundamentals['prccq'] * self.fundamentals['cshoq'] / self.fundamentals['niq']
         print('Initialize SPX membership')
         self.start_date, self.end_date = \
-            self.universe.initialize_from_files(current_spx=current_spx
-                                                 , events=events
-                                                 , quotes_dir=quotes)
+            self.universe.initialize_from_files2('../data/spx_constituents_filled.csv')
+            #self.universe.initialize_from_files(current_spx=current_spx
+            #                                     , events=events
+            #                                     , quotes_dir=quotes)
         self.cur_date = copy.deepcopy(self.start_date)
 
     def _increment_date(self):
         self.cur_date += datetime.timedelta(days=1)
-        if self.cur_date in self.universe.events:
-            for event in self.universe.events[self.cur_date]:
-                ticker, kind = event.ticker, event.type
-                self.universe.update_eligibility(ticker, kind)
-                print('Event {}:{} processed'.format(ticker, 'ADD' if kind == 0 else 'REMOVE'))
+        self.universe.update_eligibles_set(self.cur_date)
+        #if self.cur_date in self.universe.events:
+        #    for event in self.universe.events[self.cur_date]:
+        #       ticker, kind = event.ticker, event.type
+        #        self.universe.update_eligibility(ticker, kind)
+        #        print('Event {}:{} processed'.format(ticker, 'ADD' if kind == 0 else 'REMOVE'))
 
     def step_day(self):
         if self.cur_date > self.end_date:
             return None
-        query = 'SELECT * FROM QUOTES WHERE DATE = DATETIME(\'{}\')'\
+        query = 'SELECT *, Price/PriceFactor as Adj_Price FROM QUOTES WHERE DATE = DATETIME(\'{}\')'\
             .format(self.cur_date.strftime('%Y-%m-%d'))
         quote_df = pd.read_sql(query
                          , self.universe.price_db)
@@ -58,14 +60,14 @@ class BackTester(object):
         while len(quote_df) == 0:
             quote_df, signal_df = self.step_day()
         print(self.cur_date)
-        quote_df['Eligible'] = quote_df['Ticker'].apply(lambda x: x in self.universe.eligible_secs)
+        quote_df['Eligible'] = quote_df['TICKER'].apply(lambda x: x in self.universe.eligible_secs)
         signal_df = self.signal_set[self.signal_set['Date'] == self.cur_date]
         return quote_df, signal_df
 
     def step_week(self):
         if self.cur_date > self.end_date:
             return None
-        query = 'SELECT * FROM QUOTES WHERE DATE = DATETIME(\'{}\')' \
+        query = 'SELECT *, Price/PriceFactor as Adj_Price FROM QUOTES WHERE DATE = DATETIME(\'{}\')' \
             .format(self.cur_date.strftime('%Y-%m-%d'))
 
         quote_res = None
@@ -79,10 +81,10 @@ class BackTester(object):
                 quote_res = quote_res.append(pd.read_sql(query, self.universe.price_db), ignore_index=True)
                 signal_res = signal_res.append(self.signal_set[self.signal_set['Date'] == self.cur_date]
                                                , ignore_index=True)
-            query = 'SELECT * FROM QUOTES WHERE DATE = DATETIME(\'{}\')' \
+            query = 'SELECT *, Price/PriceFactor as Adj_Price FROM QUOTES WHERE DATE = DATETIME(\'{}\')' \
                 .format(self.cur_date.strftime('%Y-%m-%d'))
             self._increment_date()
-        quote_res['Eligible'] = quote_res['Ticker'].apply(lambda x: x in self.universe.eligible_secs)
+        quote_res['Eligible'] = quote_res['TICKER'].apply(lambda x: x in self.universe.eligible_secs)
         return quote_res, signal_res
 
     def reset_portfolio(self):
